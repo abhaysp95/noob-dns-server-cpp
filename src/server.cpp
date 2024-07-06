@@ -1,8 +1,62 @@
+#include <climits>
+#include <cstdint>
 #include <iostream>
 #include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <bit>
+#include <utility>
+
+// Convert from native to big endian
+// or just use htons/htonl from sys/socket.h
+template<typename T>
+T native_to_big(T u) {
+  if constexpr (std::endian::native == std::endian::big) {
+    return u;
+  } else if constexpr (std::endian::native == std::endian::little) {
+    static_assert(CHAR_BIT == 8, "CHAR_BIT != 8");
+
+    // https://stackoverflow.com/questions/98650/what-is-the-strict-aliasing-rule
+    union
+    {
+      T u;
+      unsigned char u8[sizeof(T)];
+    } source, dest;
+
+    source.u = u;
+
+    for (size_t i = 0; i < sizeof(T); i++) {
+      dest.u8[i] = source.u8[sizeof(T) - i - 1];
+    }
+
+    return dest.u;
+  } 
+  // scope for something else, which I don't know
+  std::unreachable();
+}
+
+// Convert from native to big endian
+// or just use ntohs/ntohl from sys/socket.h
+template<typename T>
+T native_to_little(T u) {
+  if constexpr (std::endian::native == std::endian::little) {
+    return u;
+  } else if constexpr (std::endian::native == std::endian::big) {
+    union {
+      T u;
+      unsigned char u8[sizeof(T)];
+    } source, dest;
+    
+    source.u = u;
+    for (size_t i = 0; i < sizeof(T); i++) {
+      dest.u8[i] = source.u8[sizeof(T) - i - 1];
+    }
+
+    return dest.u;
+  }
+  std::unreachable();
+}
 
 int main() {
   // Flush after every std::cout / std::cerr
@@ -11,6 +65,8 @@ int main() {
 
   // Disable output buffering
   setbuf(stdout, NULL);
+
+  std::cout << native_to_big<uint16_t>(1234) << std::endl;
 
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   std::cout << "Logs from your program will appear here!" << std::endl;
